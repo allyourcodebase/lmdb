@@ -10,24 +10,35 @@ pub fn build(b: *std.Build) void {
     );
     const lmdb_root = "libraries/liblmdb";
 
+    const strip = b.option(bool, "strip", "Strip debug information") orelse false;
+    const lto = b.option(bool, "lto", "Enable link time optimization") orelse false;
+
     const lib = b.addStaticLibrary(.{
         .name = "lmdb",
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .strip = strip,
+        .use_llvm = switch (optimize) {
+            .Debug => false,
+            else => true,
+        },
+        .use_lld = switch (optimize) {
+            .Debug => false,
+            else => true,
+        },
     });
+    lib.want_lto = lto;
 
     const lmdb_src = .{
         "mdb.c",
-        "mdb_copy.c",
-        "mdb_drop.c", //mdb_drop is available only on master
-        "mdb_dump.c",
-        "mdb_load.c",
-        "mdb_stat.c",
         "midl.c",
-        "mplay.c",
     };
-    const cflags = .{ "-pthread", "-std=c23" };
+
+    const cflags = .{
+        "-pthread",
+        "-std=c23",
+    };
 
     lib.addCSourceFiles(.{
         .root = lmdb_upstream.path(lmdb_root),
@@ -55,13 +66,18 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const absolute_include = b.pathJoin(&.{
+        lmdb_upstream.path(lmdb_root).getPath3(b, null).root_dir.path.?,
+        lmdb_upstream.path(lmdb_root).getPath3(b, null).sub_path,
+    });
+    // TODO: update when https://github.com/ziglang/zig/pull/20851 is available
+    lmdb_api.addIncludeDir(absolute_include);
 
-    const module = b.addModule("lmdb", .{
+    _ = b.addModule("lmdb", .{
         .root_source_file = lmdb_api.getOutput(),
         .target = target,
         .optimize = optimize,
     });
-    module.addIncludePath(lmdb_upstream.path(lmdb_root));
 
     const lib_unit_tests = b.addTest(.{
         .root_source_file = b.path("src/root.zig"),
@@ -81,8 +97,10 @@ pub fn build(b: *std.Build) void {
     lib_unit_tests.addCSourceFiles(.{
         .root = lmdb_upstream.path(lmdb_root),
         .files = &lmdb_test,
-        .flags = &cflags,
+        .flags = &(cflags ++ .{"-Wno-format"}),
     });
+    lib_unit_tests.addIncludePath(lmdb_upstream.path(lmdb_root));
+    lib_unit_tests.linkLibrary(lib);
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
