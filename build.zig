@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const mem = std.mem;
 
 pub fn build(b: *std.Build) void {
@@ -108,17 +109,22 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    const absolute_include = b.pathJoin(&.{
-        lmdb_upstream.path(lmdb_root).getPath3(b, null).root_dir.path.?,
-        lmdb_upstream.path(lmdb_root).getPath3(b, null).sub_path,
-    });
-    // TODO: update when https://github.com/ziglang/zig/pull/20851 is available
-    lmdb_api.addIncludeDir(absolute_include);
+
+    if (@hasDecl(std.Build.Step.TranslateC, "addIncludeDir")) {
+        const path = lmdb_upstream.path(lmdb_root);
+        const absolute_include = b.pathJoin(&.{
+            path.getPath3(b, null).root_dir.path.?,
+            path.getPath3(b, null).sub_path,
+        });
+        lmdb_api.addIncludeDir(absolute_include);
+    } else {
+        lmdb_api.addIncludePath(lmdb_upstream.path(lmdb_root));
+    }
 
     _ = b.addModule("lmdb", .{
         .root_source_file = lmdb_api.getOutput(),
         .target = target,
-        .optimize = optimize,
+        .optimize = .Debug,
     });
 
     const cflags_test = .{
@@ -134,7 +140,7 @@ pub fn build(b: *std.Build) void {
         "mtest3.c",
         "mtest4.c",
         "mtest5.c",
-        "mtest6.c",
+        // "mtest6.c", // disabled as it requires building liblmdb with MDB_DEBUG
     };
 
     const test_step = b.step("test", "Run lmdb unit tests");
@@ -147,15 +153,47 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .link_libc = true,
         });
+        test_exe.root_module.sanitize_c = false;
+
         test_exe.addCSourceFiles(.{
             .root = lmdb_upstream.path(lmdb_root),
             .files = &.{test_file},
             .flags = &cflags_test,
         });
         test_exe.addIncludePath(lmdb_upstream.path(lmdb_root));
+
         test_exe.linkLibrary(liblmdb);
 
-        const run_test = b.addRunArtifact(test_exe);
-        test_step.dependOn(&run_test.step);
+        const install_test_exe = b.addInstallArtifact(test_exe, .{ .dest_dir = .{ .override = .{
+            .custom = "test/",
+        } } });
+        test_step.dependOn(&install_test_exe.step);
     }
+
+    const create_testdb = struct {
+        fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) anyerror!void {
+            _ = step;
+            _ = options;
+            std.fs.cwd().makeDir("zig-out/test/testdb/") catch |err| switch (err) {
+                error.PathAlreadyExists => {},
+                else => unreachable,
+            };
+        }
+
+        fn create_testdb(owner: *std.Build) *std.Build.Step {
+            const step = owner.allocator.create(std.Build.Step) catch unreachable;
+            step.* = .init(.{
+                .id = .custom,
+                .name = "Create testdb for test",
+                .makeFn = make,
+                .owner = owner,
+            });
+
+            step.result_cached = true;
+
+            return step;
+        }
+    }.create_testdb;
+
+    test_step.dependOn(create_testdb(test_step.owner));
 }
