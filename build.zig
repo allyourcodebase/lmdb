@@ -4,9 +4,7 @@ const mem = std.mem;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{
-        .preferred_optimize_mode = .ReleaseFast,
-    });
+    const optimize = b.standardOptimizeOption(.{});
 
     const lmdb_upstream = b.dependency(
         "lmdb",
@@ -105,9 +103,9 @@ pub fn build(b: *std.Build) void {
     }
 
     const lmdb_api = b.addTranslateC(.{
-        .root_source_file = b.path("src/c.h"),
+        .root_source_file = b.path("include/c.h"),
         .target = target,
-        .optimize = optimize,
+        .optimize = .Debug,
     });
 
     if (@hasDecl(std.Build.Step.TranslateC, "addIncludeDir")) {
@@ -124,7 +122,7 @@ pub fn build(b: *std.Build) void {
     _ = b.addModule("lmdb", .{
         .root_source_file = lmdb_api.getOutput(),
         .target = target,
-        .optimize = .Debug,
+        .optimize = optimize,
     });
 
     const cflags_test = .{
