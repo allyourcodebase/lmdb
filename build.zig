@@ -104,7 +104,7 @@ pub fn build(b: *std.Build) void {
 
     const lmdb_api = b.addTranslateC(.{
         .root_source_file = b.path("include/c.h"),
-        .target = target,
+        .target = b.graph.host,
         .optimize = .Debug,
     });
 
@@ -141,7 +141,8 @@ pub fn build(b: *std.Build) void {
         // "mtest6.c", // disabled as it requires building liblmdb with MDB_DEBUG
     };
 
-    const test_step = b.step("test", "Run lmdb unit tests");
+    const test_step = b.step("install-test", "Install lmdb unit tests");
+    const test_subpath = "test/";
 
     for (lmdb_test) |test_file| {
         const test_name = test_file[0..mem.indexOfScalar(u8, test_file, '.').?];
@@ -163,35 +164,23 @@ pub fn build(b: *std.Build) void {
         test_exe.linkLibrary(liblmdb);
 
         const install_test_exe = b.addInstallArtifact(test_exe, .{ .dest_dir = .{ .override = .{
-            .custom = "test/",
+            .custom = test_subpath,
         } } });
         test_step.dependOn(&install_test_exe.step);
     }
 
     const create_testdb = struct {
-        fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) anyerror!void {
-            _ = step;
+        fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) !void {
             _ = options;
-            std.fs.cwd().makeDir("zig-out/test/testdb/") catch |err| switch (err) {
+            const step_build = step.owner;
+            std.fs.cwd().makeDir(step_build.fmt(
+                "{s}/{s}/testdb/",
+                .{ step_build.install_prefix, test_subpath },
+            )) catch |err| switch (err) {
                 error.PathAlreadyExists => {},
                 else => unreachable,
             };
         }
-
-        fn create_testdb(owner: *std.Build) *std.Build.Step {
-            const step = owner.allocator.create(std.Build.Step) catch unreachable;
-            step.* = .init(.{
-                .id = .custom,
-                .name = "Create testdb for test",
-                .makeFn = make,
-                .owner = owner,
-            });
-
-            step.result_cached = true;
-
-            return step;
-        }
-    }.create_testdb;
-
-    test_step.dependOn(create_testdb(test_step.owner));
+    }.make;
+    test_step.makeFn = create_testdb;
 }
