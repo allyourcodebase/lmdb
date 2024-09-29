@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const mem = std.mem;
+const Build = std.Build;
+const Step = Build.Step;
 
 pub fn build(b: *std.Build) void {
     if (comptime !checkVersion())
@@ -122,7 +124,7 @@ pub fn build(b: *std.Build) void {
         .optimize = .Debug,
     });
 
-    if (@hasDecl(std.Build.Step.TranslateC, "addIncludeDir")) {
+    if (@hasDecl(Step.TranslateC, "addIncludeDir")) {
         const path = lmdb_upstream.path(lmdb_root);
         const absolute_include = path.getPath2(b, null);
         lmdb_api.addIncludeDir(absolute_include);
@@ -152,7 +154,7 @@ pub fn build(b: *std.Build) void {
         // "mtest6.c", // disabled as it requires building liblmdb with MDB_DEBUG
     };
 
-    const test_step = b.step("install-test", "Install lmdb unit tests");
+    const install_test_step = b.step("install-test", "Install lmdb unit tests");
     const test_subpath = "test/";
 
     for (lmdb_test) |test_file| {
@@ -178,11 +180,11 @@ pub fn build(b: *std.Build) void {
         const install_test_exe = b.addInstallArtifact(test_exe, .{ .dest_dir = .{ .override = .{
             .custom = test_subpath,
         } } });
-        test_step.dependOn(&install_test_exe.step);
+        install_test_step.dependOn(&install_test_exe.step);
     }
 
-    const create_testdb = struct {
-        fn make(step: *std.Build.Step, options: blk: {
+    const install_create_testdb = struct {
+        fn makeFn(step: *std.Build.Step, options: blk: {
             if (@hasDecl(std.Build.Step, "MakeOptions")) {
                 break :blk std.Build.Step.MakeOptions;
             } else {
@@ -199,8 +201,11 @@ pub fn build(b: *std.Build) void {
                 else => unreachable,
             };
         }
-    }.make;
-    test_step.makeFn = create_testdb;
+    }.makeFn;
+
+    const test_step = b.step("test", "run lmdb tests");
+    install_test_step.makeFn = install_create_testdb;
+    test_step.dependOn(install_test_step);
 }
 
 // ensures the currently in-use zig version is at least the minimum required
