@@ -31,6 +31,7 @@ pub fn build(b: *std.Build) void {
         },
     });
     liblmdb.want_lto = lto;
+    liblmdb.root_module.sanitize_c = false;
 
     const liblmdb_src = .{
         "mdb.c",
@@ -89,6 +90,8 @@ pub fn build(b: *std.Build) void {
                 else => true,
             },
         });
+        tool.root_module.sanitize_c = false;
+
         tool.addCSourceFiles(.{
             .root = lmdb_upstream.path(lmdb_root),
             .files = &.{tool_file},
