@@ -35,8 +35,6 @@ jobs:
       - name: Run `build`
         run: zig build ${{ matrix.build-options }} --summary all
 
-    runs-on: ${{ matrix.os }}
-
   test:
     strategy:
       fail-fast: false
@@ -55,7 +53,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v1
         with:
-          version: {{ matrix.zig-version }}
+          version: ${{ matrix.zig-version }}
           use-cache: false
 
       - name: Install `Test`
