@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [ci]
+
+  pull_request:
+    branches: [ci]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        zig-version: ["master", "0.13.0"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        build-options: ["-Dlto"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: ${{ matrix.zig-version }}
+          use-cache: false
+
+      - name: Run `build`
+        run: zig build ${{ matrix.build-options }} --summary all
+
+    runs-on: ${{ matrix.os }}
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        zig-version: ["master", "0.13.0"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: {{ matrix.zig-version }}
+          use-cache: false
+
+      - name: Install `Test`
+        run: zig build install-test --summary all
