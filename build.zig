@@ -17,9 +17,12 @@ pub fn build(b: *std.Build) void {
 
     // writing WritingLibFiles isn't implemented on windows
     // and zld the only linker suppored on macos
-    const use_lld = if (builtin.os.tag == .macos or
-        builtin.os.tag == .windows or optimize == .Debug) false else true;
-
+    const is_macos = builtin.os.tag == .macos;
+    const is_windows = builtin.os.tag == .windows;
+    const use_lld = if (is_macos) false else if (is_windows) true else switch (optimize) {
+        .Debug => false,
+        else => true,
+    };
     const liblmdb = b.addStaticLibrary(.{
         .name = "lmdb",
         .target = target,
@@ -32,7 +35,7 @@ pub fn build(b: *std.Build) void {
         },
         .use_lld = use_lld,
     });
-    liblmdb.want_lto = lto;
+    liblmdb.want_lto = if (is_macos) false else lto;
     liblmdb.root_module.sanitize_c = false;
 
     const liblmdb_src = .{
