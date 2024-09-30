@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .strip = strip,
         .use_llvm = switch (optimize) {
-            .Debug => false,
+            .Debug => if (is_windows) true else false,
             else => true,
         },
         .use_lld = use_lld,
@@ -151,8 +151,9 @@ pub fn build(b: *std.Build) void {
         const test_exe = b.addExecutable(.{
             .name = test_name,
             .target = target,
-            .optimize = optimize,
+            .optimize = .Debug,
             .link_libc = true,
+            .use_lld = use_lld,
         });
         test_exe.root_module.sanitize_c = false;
 
