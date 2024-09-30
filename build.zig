@@ -113,10 +113,7 @@ pub fn build(b: *std.Build) void {
 
     if (@hasDecl(std.Build.Step.TranslateC, "addIncludeDir")) {
         const path = lmdb_upstream.path(lmdb_root);
-        const absolute_include = b.pathJoin(&.{
-            path.getPath3(b, null).root_dir.path.?,
-            path.getPath3(b, null).sub_path,
-        });
+        const absolute_include = path.getPath2(b, null);
         lmdb_api.addIncludeDir(absolute_include);
     } else {
         lmdb_api.addIncludePath(lmdb_upstream.path(lmdb_root));
@@ -173,7 +170,13 @@ pub fn build(b: *std.Build) void {
     }
 
     const create_testdb = struct {
-        fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) !void {
+        fn make(step: *std.Build.Step, options: blk: {
+            if (@hasDecl(std.Build.Step, "MakeOptions")) {
+                break :blk std.Build.Step.MakeOptions;
+            } else {
+                break :blk std.Progress.Node;
+            }
+        }) !void {
             _ = options;
             const step_build = step.owner;
             std.fs.cwd().makeDir(step_build.fmt(
