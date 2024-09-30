@@ -15,6 +15,11 @@ pub fn build(b: *std.Build) void {
     const strip = b.option(bool, "strip", "Strip debug information") orelse false;
     const lto = b.option(bool, "lto", "Enable link time optimization") orelse false;
 
+    // writing WritingLibFiles isn't implemented on windows
+    // and zld the only linker suppored on macos
+    const use_lld = if (builtin.os.tag == .macos or
+        builtin.os.tag == .windows or optimize == .Debug) false else true;
+
     const liblmdb = b.addStaticLibrary(.{
         .name = "lmdb",
         .target = target,
@@ -25,10 +30,7 @@ pub fn build(b: *std.Build) void {
             .Debug => false,
             else => true,
         },
-        .use_lld = switch (optimize) {
-            .Debug => false,
-            else => true,
-        },
+        .use_lld = use_lld,
     });
     liblmdb.want_lto = lto;
     liblmdb.root_module.sanitize_c = false;
@@ -85,10 +87,7 @@ pub fn build(b: *std.Build) void {
                 .Debug => false,
                 else => true,
             },
-            .use_lld = switch (optimize) {
-                .Debug => false,
-                else => true,
-            },
+            .use_lld = use_lld,
         });
         tool.root_module.sanitize_c = false;
 
