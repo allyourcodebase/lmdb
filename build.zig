@@ -3,6 +3,9 @@ const builtin = @import("builtin");
 const mem = std.mem;
 
 pub fn build(b: *std.Build) void {
+    if (comptime !checkVersion())
+        @compileError("Update your zig toolchain to >= 0.13.0");
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -198,4 +201,16 @@ pub fn build(b: *std.Build) void {
         }
     }.make;
     test_step.makeFn = create_testdb;
+}
+
+// ensures the currently in-use zig version is at least the minimum required
+fn checkVersion() bool {
+    if (!@hasDecl(builtin, "zig_version")) {
+        return false;
+    }
+
+    const needed_version = std.SemanticVersion{ .major = 0, .minor = 13, .patch = 0 };
+    const version = builtin.zig_version;
+    const order = version.order(needed_version);
+    return order != .lt;
 }
