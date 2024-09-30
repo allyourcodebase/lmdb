@@ -58,6 +58,9 @@ pub fn build(b: *std.Build) void {
     });
     liblmdb.addIncludePath(lmdb_upstream.path(lmdb_root));
     liblmdb.root_module.addCMacro("_XOPEN_SOURCE", "600");
+    if (is_macos) {
+        liblmdb.root_module.addCMacro("_DARWIN_C_SOURCE", "");
+    }
 
     liblmdb.installHeadersDirectory(
         lmdb_upstream.path(lmdb_root),
@@ -101,6 +104,9 @@ pub fn build(b: *std.Build) void {
         });
         tool.addIncludePath(lmdb_upstream.path(lmdb_root));
         tool.root_module.addCMacro("_XOPEN_SOURCE", "600");
+        if (is_macos) {
+            tool.root_module.addCMacro("_DARWIN_C_SOURCE", "");
+        }
         tool.linkLibrary(liblmdb);
 
         const install_tool = b.addInstallArtifact(tool, .{});
