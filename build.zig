@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const mem = std.mem;
+const path = std.fs.path;
 const Build = std.Build;
 const Step = Build.Step;
 
@@ -154,8 +155,30 @@ pub fn build(b: *std.Build) void {
         // "mtest6.c", // disabled as it requires building liblmdb with MDB_DEBUG
     };
 
-    const install_test_step = b.step("install-test", "Install lmdb unit tests");
-    const test_subpath = "test/";
+    const test_step = b.step("test", "Run lmdb tests");
+
+    const install_test_step = b.step("install-test", "Install lmdb tests");
+
+    const run_create_testdb = struct {
+        fn make(step: *Step, options: Step.MakeOptions) !void {
+            _ = options;
+            const run = Step.cast(step, Step.Run).?;
+            const bin_path = run.cwd.?.getPath3(step.owner, step);
+
+            std.debug.print("bin_path is {s}\n", .{bin_path.sub_path});
+        }
+
+        fn create_testdb(owner: *std.Build) *Step {
+            const run = Step.Compile.create(owner, .{
+                .name = "Create testdb for test",
+                .root_module = .{},
+                .kind = .exe,
+            });
+            var step = &run.step;
+            step.makeFn = make;
+            return step;
+        }
+    }.create_testdb;
 
     for (lmdb_test) |test_file| {
         const test_name = test_file[0..mem.indexOfScalar(u8, test_file, '.').?];
@@ -174,13 +197,22 @@ pub fn build(b: *std.Build) void {
             .flags = &cflags_test,
         });
         test_exe.addIncludePath(lmdb_upstream.path(lmdb_root));
-
         test_exe.linkLibrary(liblmdb);
+
+        const test_dirname = test_exe.getEmittedBin().dirname();
 
         const install_test_exe = b.addInstallArtifact(test_exe, .{ .dest_dir = .{ .override = .{
             .custom = test_subpath,
         } } });
-        install_test_step.dependOn(&install_test_exe.step);
+
+        const run = b.addRunArtifact(test_exe);
+        run.setCwd(test_dirname);
+        run.expectExitCode(0);
+
+        const create_testdb_step = run_create_testdb(run.step.owner);
+        run.step.dependOn(create_testdb_step);
+
+        test_step.dependOn(&run.step);
     }
 
     const install_create_testdb = struct {
@@ -203,7 +235,6 @@ pub fn build(b: *std.Build) void {
         }
     }.makeFn;
 
-    const test_step = b.step("test", "run lmdb tests");
     install_test_step.makeFn = install_create_testdb;
     test_step.dependOn(install_test_step);
 }
