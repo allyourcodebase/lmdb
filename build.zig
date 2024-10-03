@@ -1,7 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const mem = std.mem;
-const path = std.fs.path;
 const Build = std.Build;
 const Step = Build.Step;
 
@@ -156,26 +155,53 @@ pub fn build(b: *std.Build) void {
     };
 
     const test_step = b.step("test", "Run lmdb tests");
+    const run_create_testdb = struct {
+        fn makeFn(step: *Step, options: blk: {
+            if (@hasDecl(std.Build.Step, "MakeOptions")) {
+                break :blk std.Build.Step.MakeOptions;
+            } else {
+                break :blk std.Progress.Node;
+            }
+        }) !void {
+            _ = options;
+            const test_run = Step.cast(step, Step.Run).?;
+            const bin_path = test_run.cwd.?.getPath3(step.owner, step);
+            bin_path.makePath("testdb/") catch unreachable;
+        }
+
+        fn create_testdb(owner: *Build, test_dirname: Build.LazyPath) *Step {
+            const run = Step.Run.create(owner, "create testdb at the generated path");
+            run.cwd = test_dirname;
+            run.step.makeFn = makeFn;
+
+            test_dirname.addStepDependencies(&run.step);
+
+            return &run.step;
+        }
+    }.create_testdb;
 
     const install_test_step = b.step("install-test", "Install lmdb tests");
 
-    const run_create_testdb = struct {
-        fn make(step: *Step, options: Step.MakeOptions) !void {
+    const install_test_subpath = "test/";
+    install_test_step.makeFn = struct {
+        fn makeFn(step: *std.Build.Step, options: blk: {
+            if (@hasDecl(std.Build.Step, "MakeOptions")) {
+                break :blk std.Build.Step.MakeOptions;
+            } else {
+                break :blk std.Progress.Node;
+            }
+        }) !void {
             _ = options;
-            const run = Step.cast(step, Step.Run).?;
-            const bin_path = run.cwd.?.getPath3(step.owner, step);
+            const step_build = step.owner;
+            std.fs.cwd().makeDir(step_build.fmt(
+                "{s}/{s}/testdb/",
+                .{ step_build.install_prefix, install_test_subpath },
+            )) catch |err| switch (err) {
+                error.PathAlreadyExists => {},
+                else => unreachable,
+            };
         }
-
-        fn create_testdb(owner: *Build) *Step {
-            var step = Step.init(.{
-                .id = .custom,
-                .owner = owner,
-                .makeFn = make,
-                .name = "Create testdb for test",
-            });
-            return &step;
-        }
-    }.create_testdb;
+    }.makeFn;
 
     for (lmdb_test) |test_file| {
         const test_name = test_file[0..mem.indexOfScalar(u8, test_file, '.').?];
@@ -200,40 +226,21 @@ pub fn build(b: *std.Build) void {
         const test_dirname = test_exe.getEmittedBin().dirname();
 
         const install_test_exe = b.addInstallArtifact(test_exe, .{ .dest_dir = .{ .override = .{
-            .custom = test_subpath,
+            .custom = install_test_subpath,
         } } });
 
         const run = b.addRunArtifact(test_exe);
         run.setCwd(test_dirname);
         run.expectExitCode(0);
+        run.enableTestRunnerMode();
 
-        const create_testdb_step = run_create_testdb(run.step.owner);
-        run.step.dependOn(create_testdb_step);
+        const create_testdb = run_create_testdb(run.step.owner, test_dirname);
+        create_testdb.dependOn(&test_exe.step);
+        run.step.dependOn(create_testdb);
         test_step.dependOn(&run.step);
+
+        install_test_step.dependOn(&install_test_exe.step);
     }
-
-    const install_create_testdb = struct {
-        fn makeFn(step: *std.Build.Step, options: blk: {
-            if (@hasDecl(std.Build.Step, "MakeOptions")) {
-                break :blk std.Build.Step.MakeOptions;
-            } else {
-                break :blk std.Progress.Node;
-            }
-        }) !void {
-            _ = options;
-            const step_build = step.owner;
-            std.fs.cwd().makeDir(step_build.fmt(
-                "{s}/{s}/testdb/",
-                .{ step_build.install_prefix, test_subpath },
-            )) catch |err| switch (err) {
-                error.PathAlreadyExists => {},
-                else => unreachable,
-            };
-        }
-    }.makeFn;
-
-    install_test_step.makeFn = install_create_testdb;
-    test_step.dependOn(install_test_step);
 }
 
 // ensures the currently in-use zig version is at least the minimum required
