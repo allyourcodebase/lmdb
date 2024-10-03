@@ -164,24 +164,22 @@ pub fn build(b: *std.Build) void {
             _ = options;
             const run = Step.cast(step, Step.Run).?;
             const bin_path = run.cwd.?.getPath3(step.owner, step);
-
-            std.debug.print("bin_path is {s}\n", .{bin_path.sub_path});
         }
 
-        fn create_testdb(owner: *std.Build) *Step {
-            const run = Step.Compile.create(owner, .{
+        fn create_testdb(owner: *Build) *Step {
+            var step = Step.init(.{
+                .id = .custom,
+                .owner = owner,
+                .makeFn = make,
                 .name = "Create testdb for test",
-                .root_module = .{},
-                .kind = .exe,
             });
-            var step = &run.step;
-            step.makeFn = make;
-            return step;
+            return &step;
         }
     }.create_testdb;
 
     for (lmdb_test) |test_file| {
         const test_name = test_file[0..mem.indexOfScalar(u8, test_file, '.').?];
+
         const test_exe = b.addExecutable(.{
             .name = test_name,
             .target = target,
@@ -211,7 +209,6 @@ pub fn build(b: *std.Build) void {
 
         const create_testdb_step = run_create_testdb(run.step.owner);
         run.step.dependOn(create_testdb_step);
-
         test_step.dependOn(&run.step);
     }
 
