@@ -3,8 +3,12 @@ const builtin = @import("builtin");
 const mem = std.mem;
 const Build = std.Build;
 const Step = Build.Step;
+const MakeOptions = if (@hasDecl(Step, "MakeOptions"))
+    Step.MakeOptions
+else
+    std.Progress.Node;
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *Build) void {
     if (comptime !checkVersion())
         @compileError("Update your zig toolchain to >= 0.13.0");
 
@@ -156,13 +160,7 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run lmdb tests");
     const run_create_testdb = struct {
-        fn makeFn(step: *Step, options: blk: {
-            if (@hasDecl(std.Build.Step, "MakeOptions")) {
-                break :blk std.Build.Step.MakeOptions;
-            } else {
-                break :blk std.Progress.Node;
-            }
-        }) !void {
+        fn makeFn(step: *Step, options: MakeOptions) !void {
             _ = options;
             const test_run = Step.cast(step, Step.Run).?;
             const subpath = "testdb/";
@@ -195,13 +193,7 @@ pub fn build(b: *std.Build) void {
 
     const install_test_subpath = "test/";
     install_test_step.makeFn = struct {
-        fn makeFn(step: *std.Build.Step, options: blk: {
-            if (@hasDecl(std.Build.Step, "MakeOptions")) {
-                break :blk std.Build.Step.MakeOptions;
-            } else {
-                break :blk std.Progress.Node;
-            }
-        }) !void {
+        fn makeFn(step: *Step, options: MakeOptions) !void {
             _ = options;
             const step_build = step.owner;
             std.fs.cwd().makeDir(step_build.fmt(
