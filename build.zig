@@ -165,8 +165,19 @@ pub fn build(b: *std.Build) void {
         }) !void {
             _ = options;
             const test_run = Step.cast(step, Step.Run).?;
-            const bin_path = test_run.cwd.?.getPath3(step.owner, step);
-            bin_path.makePath("testdb/") catch unreachable;
+            const subpath = "testdb/";
+            if (@hasDecl(Build.LazyPath, "getPath3")) {
+                const bin_path = test_run.cwd.?.getPath3(step.owner, step);
+                bin_path.makePath(subpath) catch unreachable;
+            } else {
+                const bin_path = test_run.cwd.?.getPath2(step.owner, step);
+                const owner = test_run.step.owner;
+                const full_path = owner.fmt("{s}/{s}", .{ bin_path, subpath });
+                owner.cache_root.handle.makeDir(full_path) catch |err| switch (err) {
+                    error.PathAlreadyExists => {},
+                    else => unreachable,
+                };
+            }
         }
 
         fn create_testdb(owner: *Build, test_dirname: Build.LazyPath) *Step {
