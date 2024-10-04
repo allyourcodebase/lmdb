@@ -3,10 +3,6 @@ const builtin = @import("builtin");
 const mem = std.mem;
 const Build = std.Build;
 const Step = Build.Step;
-const MakeOptions = if (@hasDecl(Step, "MakeOptions"))
-    Step.MakeOptions
-else
-    std.Progress.Node;
 
 pub fn build(b: *Build) void {
     if (comptime !checkVersion())
@@ -158,6 +154,11 @@ pub fn build(b: *Build) void {
         // "mtest6.c", // disabled as it requires building liblmdb with MDB_DEBUG
     };
 
+    const MakeOptions = if (@hasDecl(Step, "MakeOptions"))
+        Step.MakeOptions
+    else
+        std.Progress.Node;
+
     const test_step = b.step("test", "Run lmdb tests");
     const run_create_testdb = struct {
         fn makeFn(step: *Step, options: MakeOptions) !void {
@@ -180,10 +181,8 @@ pub fn build(b: *Build) void {
 
         fn create_testdb(owner: *Build, test_dirname: Build.LazyPath) *Step {
             const run = Step.Run.create(owner, "create testdb at the generated path");
-            run.cwd = test_dirname;
             run.step.makeFn = makeFn;
-
-            test_dirname.addStepDependencies(&run.step);
+            run.setCwd(test_dirname);
 
             return &run.step;
         }
