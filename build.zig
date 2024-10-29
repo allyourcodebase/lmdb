@@ -21,13 +21,15 @@ pub fn build(b: *Build) void {
     const lto = b.option(bool, "lto", "Enable link time optimization") orelse false;
 
     // writing WritingLibFiles isn't implemented on windows
-    // and zld the only linker suppored on macos
+    // and zld the only linker supported on macos
     const is_macos = builtin.os.tag == .macos;
     const is_windows = builtin.os.tag == .windows;
     const use_lld = if (is_macos) false else if (is_windows) true else switch (optimize) {
         .Debug => false,
         else => true,
     };
+    const use_lto = if (is_macos) false else if (use_lld) lto else false;
+
     const liblmdb = b.addStaticLibrary(.{
         .name = "lmdb",
         .target = target,
@@ -40,7 +42,7 @@ pub fn build(b: *Build) void {
         },
         .use_lld = use_lld,
     });
-    liblmdb.want_lto = if (is_macos) false else lto;
+    liblmdb.want_lto = use_lto;
     liblmdb.root_module.sanitize_c = false;
 
     const liblmdb_src = .{
