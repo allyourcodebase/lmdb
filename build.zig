@@ -22,8 +22,8 @@ pub fn build(b: *Build) void {
 
     // writing WritingLibFiles isn't implemented on windows
     // and zld the only linker suppored on macos
-    const is_macos = builtin.os.tag == .macos;
-    const is_windows = builtin.os.tag == .windows;
+    const is_macos = builtin.os.tag == .macos or target.result.os.tag == .macos;
+    const is_windows = builtin.os.tag == .windows or target.result.os.tag == .windows;
     const use_lld = if (is_macos) false else if (is_windows) true else switch (optimize) {
         .Debug => false,
         else => true,
