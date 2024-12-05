@@ -37,8 +37,10 @@ jobs:
         run: zig build ${{ matrix.build-options }} -Doptimize=${{ matrix.optimize }} --summary all
 
       # Test allyourcodebase/lmdb#3
-      - name: Run `build tools`
+      - name: Run `build tools on macos`
         run: zig build tools -Dtarget=x86_64-macos-none --summary all
+
+      - name: Run `build tools on windows`
         run: zig build tools -Dtarget=x86_64-windows-gnu --summary all
 
   test:
