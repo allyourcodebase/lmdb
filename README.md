@@ -8,8 +8,10 @@ First, update your `build.zig.zon`:
 ```elvish
 # Initialize a `zig build` project if you haven't already
 zig init
-# Support for `lmdb` starts with 0.9.31 and future releases
-zig fetch --save https://github.com/Ultra-Code/lmdb/archive/refs/tags/0.9.31.tar.gz
+# Support for `lmdb` starts with v0.9.31 and future releases
+zig fetch --save https://github.com/allyourcodebase/lmdb/archive/refs/tags/v0.9.31+1.tar.gz
+# For latest main commit
+zig fetch --save https://github.com/allyourcodebase/lmdb/archive/refs/heads/main.tar.gz
 ```
 
 Import `lmdb` dependency into build `build.zig` as follows:
