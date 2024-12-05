@@ -20,10 +20,11 @@ pub fn build(b: *Build) void {
     const strip = b.option(bool, "strip", "Strip debug information") orelse false;
     const lto = b.option(bool, "lto", "Enable link time optimization") orelse false;
 
-    // writing WritingLibFiles isn't implemented on windows
-    // and zld the only linker supported on macos
-    const is_macos = builtin.os.tag == .macos;
-    const is_windows = builtin.os.tag == .windows;
+    const is_macos = builtin.os.tag == .macos or target.result.os.tag == .macos;
+    const is_windows = builtin.os.tag == .windows or target.result.os.tag == .windows;
+    
+    // writing WritingLibFiles in zld isn't implemented on windows
+    // and zld is the only linker suppored on macos
     const use_lld = if (is_macos) false else if (is_windows) true else switch (optimize) {
         .Debug => false,
         else => true,
