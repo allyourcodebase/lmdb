@@ -36,12 +36,30 @@ jobs:
       - name: Run `build`
         run: zig build ${{ matrix.build-options }} -Doptimize=${{ matrix.optimize }} --summary all
 
-      # Test allyourcodebase/lmdb#3
+  # CI test for allyourcodebase/lmdb#3
+  tools:
+    strategy:
+      fail-fast: false
+      matrix:
+        zig-version: ["master", "0.13.0"]
+        os: [ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: ${{ matrix.zig-version }}
+          use-cache: false
+
       - name: Run `build tools on macos`
         run: zig build tools -Dtarget=x86_64-macos-none --summary all
-
-      - name: Run `build tools on windows`
-        run: zig build tools -Dtarget=x86_64-windows-gnu --summary all
 
   test:
     strategy:
