@@ -62,8 +62,10 @@ jobs:
           version: ${{ matrix.zig-version }}
           use-cache: false
 
-      - name: Run `build tools on macos`
-        run: zig build tools -Dtarget=x86_64-macos-none --summary all
+      - name: Run `build tools on macos and windows`
+        run: |
+          zig build tools -Dtarget=x86_64-macos --summary all
+          zig build tools -Dtarget=x86_64-windows --summary all
 
   test:
     strategy:
