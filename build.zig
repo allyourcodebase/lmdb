@@ -124,7 +124,6 @@ const BuildLmdb = struct {
     }
 
     fn tools(bl: BuildLmdb, liblmdb: *Compile) void {
-        const opt = bl.opt;
         const b = bl.b;
         const tools_step = b.step("tools", "Install lmdb tools");
 
@@ -170,11 +169,14 @@ const BuildLmdb = struct {
             "mdb_load.c",
             "mdb_stat.c",
         };
-        // windows doesn't have 'sys/wait.h' its a posix system header
-        const extra_tools = [_][]const u8{"mplay.c"};
-
         build_tools(bl, liblmdb, tools_step, core_tools[0..]);
-        if (!opt.isWindows()) build_tools(bl, liblmdb, tools_step, extra_tools[0..]);
+
+        // Disable mplay because windows doesn't have the posix system header
+        // 'sys/wait.h' and it doesn't compile on `musl` libc becaues `stdin`
+        // and `stdout` are defined as `const` which `mplay.c` tries to modify
+        const extra_tools = [_][]const u8{"mplay.c"};
+        const disable_mplay = true;
+        if (!disable_mplay) build_tools(bl, liblmdb, tools_step, extra_tools[0..]);
     }
 
     fn tests(bl: BuildLmdb, liblmdb: *Compile) void {
