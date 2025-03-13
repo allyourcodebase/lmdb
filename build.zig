@@ -1,9 +1,11 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const mem = std.mem;
 const Build = std.Build;
 const Step = Build.Step;
 const Compile = Step.Compile;
-const builtin = @import("builtin");
+const LinkMode = std.builtin.LinkMode;
+const OptimizeMode = std.builtin.OptimizeMode;
 
 const MakeOptions = if (@hasDecl(Step, "MakeOptions"))
     Step.MakeOptions
@@ -25,6 +27,7 @@ pub fn build(b: *Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const strip = b.option(bool, "strip", "Strip debug information") orelse false;
+    const linkage = b.option(LinkMode, "linkage", "Link mode for Lmdb") orelse .static;
     const lto = b.option(bool, "lto", "Enable link time optimization") orelse false;
 
     const lmdb_upstream = b.dependency(
@@ -38,6 +41,7 @@ pub fn build(b: *Build) void {
         .strip_option = strip,
         .target = target,
         .optimize = optimize,
+        .linkage = linkage,
     };
     const lmdb: BuildLmdb = .{
         .b = b,
@@ -57,12 +61,15 @@ const BuildLmdb = struct {
     fn lib(bl: BuildLmdb) *Compile {
         const opt = bl.opt;
         const b = bl.b;
-        const liblmdb = b.addStaticLibrary(.{
+        const liblmdb = b.addLibrary(.{
             .name = "lmdb",
-            .target = opt.target,
-            .optimize = opt.optimize,
-            .link_libc = true,
-            .strip = opt.strip_option,
+            .linkage = opt.linkage,
+            .root_module = b.createModule(.{
+                .target = opt.target,
+                .optimize = opt.optimize,
+                .link_libc = true,
+                .strip = opt.strip_option,
+            }),
             .use_llvm = opt.use_llvm(),
             .use_lld = opt.use_lld(),
         });
@@ -289,9 +296,10 @@ const BuildLmdb = struct {
 const BuildOpt = struct {
     lmdb_upstream: *Build.Dependency,
     target: Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
+    optimize: OptimizeMode,
     strip_option: bool,
     lto_option: bool,
+    linkage: LinkMode,
 
     fn isOs(os: std.Target.Os.Tag, target: Build.ResolvedTarget) bool {
         return builtin.os.tag == os or target.result.os.tag == os;
