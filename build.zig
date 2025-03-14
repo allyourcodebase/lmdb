@@ -7,11 +7,6 @@ const Compile = Step.Compile;
 const LinkMode = std.builtin.LinkMode;
 const OptimizeMode = std.builtin.OptimizeMode;
 
-const MakeOptions = if (@hasDecl(Step, "MakeOptions"))
-    Step.MakeOptions
-else
-    std.Progress.Node;
-
 const lmdb_root = "libraries/liblmdb";
 
 const cflags = .{
@@ -36,9 +31,9 @@ pub fn build(b: *Build) void {
     );
 
     const build_opt: BuildOpt = .{
-        .lmdb_upstream = lmdb_upstream,
-        .lto_option = lto,
-        .strip_option = strip,
+        .upstream = lmdb_upstream,
+        .lto = lto,
+        .strip = strip,
         .target = target,
         .optimize = optimize,
         .linkage = linkage,
@@ -68,13 +63,13 @@ const BuildLmdb = struct {
                 .target = opt.target,
                 .optimize = opt.optimize,
                 .link_libc = true,
-                .strip = opt.strip_option,
+                .strip = opt.strip,
+                .sanitize_c = false,
             }),
             .use_llvm = opt.use_llvm(),
             .use_lld = opt.use_lld(),
         });
         liblmdb.want_lto = opt.use_lto();
-        liblmdb.root_module.sanitize_c = false;
 
         const lmdb_includes = .{
             "lmdb.h",
@@ -86,18 +81,18 @@ const BuildLmdb = struct {
         };
 
         liblmdb.addCSourceFiles(.{
-            .root = opt.lmdb_upstream.path(lmdb_root),
+            .root = opt.upstream.path(lmdb_root),
             .files = &liblmdb_src,
             .flags = &cflags,
         });
-        liblmdb.addIncludePath(opt.lmdb_upstream.path(lmdb_root));
+        liblmdb.addIncludePath(opt.upstream.path(lmdb_root));
         liblmdb.root_module.addCMacro("_XOPEN_SOURCE", "600");
         if (opt.isMacos()) {
             liblmdb.root_module.addCMacro("_DARWIN_C_SOURCE", "");
         }
 
         liblmdb.installHeadersDirectory(
-            opt.lmdb_upstream.path(lmdb_root),
+            opt.upstream.path(lmdb_root),
             "",
             .{ .include_extensions = &lmdb_includes },
         );
@@ -115,13 +110,7 @@ const BuildLmdb = struct {
             .optimize = .Debug,
         });
 
-        if (@hasDecl(Step.TranslateC, "addIncludeDir")) {
-            const path = opt.lmdb_upstream.path(lmdb_root);
-            const absolute_include = path.getPath2(b, null);
-            lmdb_api.addIncludeDir(absolute_include);
-        } else {
-            lmdb_api.addIncludePath(opt.lmdb_upstream.path(lmdb_root));
-        }
+        lmdb_api.addIncludePath(opt.upstream.path(lmdb_root));
 
         _ = b.addModule("lmdb", .{
             .root_source_file = lmdb_api.getOutput(),
@@ -142,21 +131,23 @@ const BuildLmdb = struct {
                     const bin_name = tool_file[0..mem.indexOfScalar(u8, tool_file, '.').?];
                     const tool = b_.addExecutable(.{
                         .name = bin_name,
-                        .target = opt_.target,
-                        .optimize = opt_.optimize,
-                        .link_libc = true,
-                        .strip = opt_.strip_option,
+                        .root_module = b_.createModule(.{
+                            .target = opt_.target,
+                            .optimize = opt_.optimize,
+                            .link_libc = true,
+                            .strip = opt_.strip,
+                            .sanitize_c = false,
+                        }),
                         .use_llvm = opt_.use_llvm(),
                         .use_lld = opt_.use_lld(),
                     });
-                    tool.root_module.sanitize_c = false;
 
                     tool.addCSourceFiles(.{
-                        .root = opt_.lmdb_upstream.path(lmdb_root),
+                        .root = opt_.upstream.path(lmdb_root),
                         .files = &.{tool_file},
                         .flags = &cflags,
                     });
-                    tool.addIncludePath(opt_.lmdb_upstream.path(lmdb_root));
+                    tool.addIncludePath(opt_.upstream.path(lmdb_root));
                     tool.root_module.addCMacro("_XOPEN_SOURCE", "600");
                     if (opt_.isMacos()) {
                         tool.root_module.addCMacro("_DARWIN_C_SOURCE", "");
@@ -193,7 +184,7 @@ const BuildLmdb = struct {
 
         const install_test_subpath = "test/";
         install_test_step.makeFn = struct {
-            fn makeFn(step: *Step, options: MakeOptions) !void {
+            fn makeFn(step: *Step, options: Step.MakeOptions) !void {
                 _ = options;
                 const step_build = step.owner;
                 std.fs.cwd().makeDir(step_build.fmt(
@@ -207,22 +198,12 @@ const BuildLmdb = struct {
         }.makeFn;
 
         const create_testdb = struct {
-            fn makeFn(step: *Step, options: MakeOptions) !void {
+            fn makeFn(step: *Step, options: Step.MakeOptions) !void {
                 _ = options;
                 const test_run = Step.cast(step, Step.Run).?;
                 const subpath = "testdb/";
-                if (@hasDecl(Build.LazyPath, "getPath3")) {
-                    const bin_path = test_run.cwd.?.getPath3(step.owner, step);
-                    bin_path.makePath(subpath) catch unreachable;
-                } else {
-                    const bin_path = test_run.cwd.?.getPath2(step.owner, step);
-                    const owner = test_run.step.owner;
-                    const full_path = owner.fmt("{s}/{s}", .{ bin_path, subpath });
-                    owner.cache_root.handle.makeDir(full_path) catch |err| switch (err) {
-                        error.PathAlreadyExists => {},
-                        else => unreachable,
-                    };
-                }
+                const bin_path = test_run.cwd.?.getPath3(step.owner, step);
+                bin_path.makePath(subpath) catch unreachable;
             }
 
             fn create_testdb(owner: *Build, test_dirname: Build.LazyPath) *Step {
@@ -257,26 +238,32 @@ const BuildLmdb = struct {
 
             const test_exe = b.addExecutable(.{
                 .name = test_name,
-                .target = opt.target,
-                .optimize = .Debug,
-                .link_libc = true,
+                .root_module = b.createModule(.{
+                    .target = opt.target,
+                    .optimize = .Debug,
+                    .link_libc = true,
+                    .sanitize_c = false,
+                }),
                 .use_lld = opt.use_lld(),
             });
-            test_exe.root_module.sanitize_c = false;
 
             test_exe.addCSourceFiles(.{
-                .root = opt.lmdb_upstream.path(lmdb_root),
+                .root = opt.upstream.path(lmdb_root),
                 .files = &.{test_file},
                 .flags = &cflags_test,
             });
-            test_exe.addIncludePath(opt.lmdb_upstream.path(lmdb_root));
+            test_exe.addIncludePath(opt.upstream.path(lmdb_root));
             test_exe.linkLibrary(liblmdb);
 
             const test_dirname = test_exe.getEmittedBin().dirname();
 
-            const install_test_exe = b.addInstallArtifact(test_exe, .{ .dest_dir = .{ .override = .{
-                .custom = install_test_subpath,
-            } } });
+            const install_test_exe = b.addInstallArtifact(test_exe, .{
+                .dest_dir = .{
+                    .override = .{
+                        .custom = install_test_subpath,
+                    },
+                },
+            });
 
             const run = b.addRunArtifact(test_exe);
             run.setCwd(test_dirname);
@@ -294,11 +281,11 @@ const BuildLmdb = struct {
 };
 
 const BuildOpt = struct {
-    lmdb_upstream: *Build.Dependency,
+    upstream: *Build.Dependency,
     target: Build.ResolvedTarget,
     optimize: OptimizeMode,
-    strip_option: bool,
-    lto_option: bool,
+    strip: bool,
+    lto: bool,
     linkage: LinkMode,
 
     fn isOs(os: std.Target.Os.Tag, target: Build.ResolvedTarget) bool {
@@ -314,7 +301,7 @@ const BuildOpt = struct {
     }
 
     fn use_lto(opt: BuildOpt) bool {
-        return if (opt.isMacos()) false else if (opt.use_lld()) opt.lto_option else false;
+        return if (opt.isMacos()) false else if (opt.use_lld()) opt.lto else false;
     }
 
     fn use_llvm(opt: BuildOpt) bool {
@@ -340,7 +327,7 @@ fn checkVersion() bool {
         return false;
     }
 
-    const needed_version = std.SemanticVersion{ .major = 0, .minor = 13, .patch = 0 };
+    const needed_version = std.SemanticVersion{ .major = 0, .minor = 14, .patch = 0 };
     const version = builtin.zig_version;
     const order = version.order(needed_version);
     return order != .lt;

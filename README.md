@@ -9,18 +9,20 @@ First, update your `build.zig.zon`:
 # Initialize a `zig build` project if you haven't already
 zig init
 # Support for `lmdb` starts with v0.9.31 and future releases
-zig fetch --save https://github.com/allyourcodebase/lmdb/archive/refs/tags/0.9.31+1.tar.gz
-# For latest main commit
+zig fetch --save https://github.com/allyourcodebase/lmdb/archive/refs/tags/0.9.31+2.tar.gz
+# For latest git commit
 zig fetch --save https://github.com/allyourcodebase/lmdb/archive/refs/heads/main.tar.gz
 ```
 
-Import `lmdb` dependency into build `build.zig` as follows:
+Import `lmdb` dependency into `build.zig` as follows:
 
 ```zig
     const lmdb_dep = b.dependency("lmdb", .{
         .target = target,
         .optimize = optimize,
+        .strip = true,
         .lto = true,
+        .linkage = .static,
     });
 ```
 
@@ -43,5 +45,5 @@ Using `lmdb` artifacts and module in your project
 ```
 
 ## Supported on Linux, macOS and Windows
-- Zig 0.14.0-dev
-- Zig 0.13.0
+- Zig 0.15.0-dev
+- Zig 0.14.0
