@@ -46,4 +46,4 @@ Using `lmdb` artifacts and module in your project
 
 ## Supported on Linux, macOS and Windows
 - Zig 0.15.0-dev
-- Zig 0.14.0
+- Zig 0.14.1

@@ -14,6 +14,12 @@ const cflags = .{
     "-std=c23",
 };
 
+const sanitize_c = if (builtin.zig_version.order(.{
+    .major = 0,
+    .minor = 14,
+    .patch = 1,
+}) == .gt) .off else false;
+
 pub fn build(b: *Build) void {
     if (comptime !checkVersion())
         @compileError("Update your zig toolchain to >= 0.13.0");
@@ -64,7 +70,7 @@ const BuildLmdb = struct {
                 .optimize = opt.optimize,
                 .link_libc = true,
                 .strip = opt.strip,
-                .sanitize_c = false,
+                .sanitize_c = sanitize_c,
             }),
             .use_llvm = opt.use_llvm(),
             .use_lld = opt.use_lld(),
@@ -136,7 +142,7 @@ const BuildLmdb = struct {
                             .optimize = opt_.optimize,
                             .link_libc = true,
                             .strip = opt_.strip,
-                            .sanitize_c = false,
+                            .sanitize_c = sanitize_c,
                         }),
                         .use_llvm = opt_.use_llvm(),
                         .use_lld = opt_.use_lld(),
@@ -242,7 +248,7 @@ const BuildLmdb = struct {
                     .target = opt.target,
                     .optimize = .Debug,
                     .link_libc = true,
-                    .sanitize_c = false,
+                    .sanitize_c = sanitize_c,
                 }),
                 .use_lld = opt.use_lld(),
             });
@@ -327,7 +333,7 @@ fn checkVersion() bool {
         return false;
     }
 
-    const needed_version = std.SemanticVersion{ .major = 0, .minor = 14, .patch = 0 };
+    const needed_version = std.SemanticVersion{ .major = 0, .minor = 14, .patch = 1 };
     const version = builtin.zig_version;
     const order = version.order(needed_version);
     return order != .lt;

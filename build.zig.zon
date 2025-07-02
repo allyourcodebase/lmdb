@@ -1,12 +1,12 @@
 .{
     .name = .lmdb,
     .version = "0.9.31+2",
-    .minimum_zig_version = "0.14.0",
+    .minimum_zig_version = "0.14.1",
     .fingerprint = 0xb2966103474360ca,
     .dependencies = .{
         .lmdb = .{
-            .url = "https://github.com/LMDB/lmdb/archive/f20e41de09d97e4461946b7e26ec831d0c24fac7.tar.gz",
-            .hash = "N-V-__8AAC7gCADLpFI1WXLj3t-bdozmit34FAIaqT2ijeAi",
+            .url = "https://github.com/LMDB/lmdb/archive/14d6629bc8a9fe40d8a6bee1bf71c45afe7576b6.tar.gz",
+            .hash = "N-V-__8AABzgCAC6yX-gYcngpmRFF74ZANIAhphOalO6yoyI",
             .lazy = false,
         },
     },
